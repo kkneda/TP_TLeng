@@ -1,8 +1,6 @@
 import ply.lex as lex # Se importa el modulo con el lexer de ply.
 
 # Diccionario con palabras reservadas:
-# TODO: Al importar el lexer la consola tira un warning: "WARNING: Token 'BASIC_TYPE' multiply 
-# defined", arreglarlo de ser posible.
 reserved = {
 	'type' : 'TYPE',
 	'struct' : 'STRUCT',
@@ -13,7 +11,7 @@ reserved = {
 }
 
 # Lista de nombres de los tokens:
-tokens = ['ID', 'LBRACE', 'RBRACE', 'LBRACK', 'RBRACK'] + list(reserved.values())
+tokens = ['ID', 'LBRACE', 'RBRACE', 'LBRACK', 'RBRACK'] + list(set(reserved.values()))
 
 # Reglas para tokens simples usando solo expresiones regulares:
 t_LBRACE = r'\{'
@@ -49,3 +47,35 @@ def t_error(t):
 
 # Se construye el lexer:
 lexer = lex.lex()
+
+
+def test():
+	data = '''
+	type persona struct {
+		nombre string
+		edad int
+		nacionalidad pais
+		ventas []float64
+		activo bool
+	}
+
+	type pais struct {
+		nombre string
+		codigo struct {
+		prefijo string
+		sufijo string
+		}
+	}
+	'''
+
+	# Give the lexer some input
+	lexer.input(data)
+
+	# Tokenize
+	while True:
+		tok = lexer.token()
+		if not tok:
+			break      # No more input
+		print(tok)
+
+#test()
