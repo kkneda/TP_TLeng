@@ -2,56 +2,79 @@ import ply.yacc as yacc
 
 from lexer import tokens
 
-# TYPE_DEF -> TYPE TYPE_DECLARE TYPE_DEF | .
-# TYPE_DECLARE -> ID TYPE_ELEMENT .
-# TYPE_ELEMENT -> [] TYPE_ELEMENT | TYPE_VALUE .
-# TYPE_VALUE -> BASIC_TYPE | STRUCT  | ID.
-# STRUCT -> struct { MULT_TYPE_DECLARE } .
-# MULT_TYPE_DECLARE -> TYPE_DECLARE MULT_TYPE_DECLARE | .
+# tipo -> TYPE ID STRUCT { lista } tipo | .
+# lista -> ID arreglo BASIC_TYPE lista | ID arreglo ID lista | ID arreglo STRUCT { lista } lista | .
+# arreglo -> [ ] arreglo | .
 
-def p_type_def_nonempty(p):
-    'type_def : TYPE type_declare type_def'
-    pass
 
-def p_type_def_empty(p):
-    'type_def : '
-    pass
 
-def p_type_declare(p):
-    'type_declare : ID type_element'
-    pass
+class Declaracion:
+    def __init__(self, nombre_var, tipo):
+        self.nombre_var = nombre_var
+        self.tipo = tipo
+    def __repr__(self):
+        return str(self.nombre_var) + " " +  str(self.tipo)
 
-def p_type_element_list(p):
-    'type_element : LBRACK RBRACK type_element'
-    pass
+class Tipo:
+    def __init__(self, categoria, es_primitivo, dimension):
+        self.categoria = categoria
+        self.es_primitivo = es_primitivo
+        self.dimension = dimension
+    def __repr__(self):
+        return str(self.categoria) + " " +  str(self.es_primitivo) + " " + str(self.dimension)
 
-def p_type_element_value(p):
-    'type_element : type_value'
-    pass
+class Struct:
+    def __init__(self, declaraciones):
+        self.declaraciones = declaraciones
+    def __repr__(self):
+        return "Struct " +  str(self.declaraciones)
 
-def p_type_value_basic_type(p):
-    'type_value : BASIC_TYPE'
-    pass
+def p_tipo_novacio(p):
+    'tipo : TYPE ID STRUCT LBRACE lista RBRACE tipo'
+    dicc = p[7]
+    if p[2] in dicc:
+        print("FAIL -> Definiste dos veces lo mismo")
+    else:
+        dicc[p[2]] = p[5]
+        p[0] = dicc
+    
+    
+def p_tipo_vacio(p):
+    'tipo : '
+    p[0] = {}
 
-def p_type_value_struct(p):
-    'type_value : struct'
-    pass
+def p_lista_tipo_basico(p):
+    'lista : ID arreglo BASIC_TYPE lista'
+    tipo = Tipo(p[3], True,p[2])
+    decl = Declaracion(p[1], tipo)
+    p[0] = [decl] + p[4]
 
-def p_type_value_id(p):
-    'type_value : ID'
-    pass
+def p_lista_tipo_estructura_independiente(p):
+    'lista : ID arreglo ID lista'
+    tipo = Tipo(p[3], False, p[2])
+    decl = Declaracion(p[1], tipo)
+    p[0] = [decl] + p[4]
 
-def p_struct(p):
-    'struct : STRUCT LBRACE mult_type_declare RBRACE'
-    pass
+def p_lista_tipo_estructura_dependiente(p):
+    'lista : ID arreglo STRUCT LBRACE lista RBRACE lista'
+    estructura = Struct(p[5])
+    tipo = Tipo(estructura, False, p[2])
+    decl = Declaracion(p[1], tipo)
+    p[0] = [decl] + p[7]
 
-def p_mult_type_declare_nonempty(p):
-    'mult_type_declare : type_declare mult_type_declare'
-    pass
 
-def p_mult_type_declare_empty(p):
-    'mult_type_declare : '
-    pass
+def p_lista_vacia(p):
+    'lista : '
+    p[0] = []
+
+def p_arreglo_novacio(p):
+    'arreglo : LBRACK RBRACK arreglo'
+    p[0] = p[3] + 1
+
+def p_arreglo_vacio(p):
+    'arreglo : '
+    p[0] = 0 
+
 
 def p_error(p):
     print("Syntax error in input!")
