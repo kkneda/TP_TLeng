@@ -1,5 +1,7 @@
 from networkx import DiGraph, is_directed_acyclic_graph
 from itertools import chain
+import random
+import string
 import ply.yacc as yacc
 
 from lexer import tokens
@@ -8,6 +10,31 @@ from lexer import tokens
 # tipo -> TYPE ID STRUCT { lista } tipo | .
 # lista -> ID arreglo BASIC_TYPE lista | ID arreglo ID lista | ID arreglo STRUCT { lista } lista | .
 # arreglo -> [ ] arreglo | .
+
+tabulacion = " " * 2
+
+def ejemplificar_lista_declaraciones(lista_de_declaraciones, dicc_clases, cant_tabs):
+    json = '{\n'
+    for declaracion in lista_de_declaraciones:
+        json += declaracion.ejemplo(dicc_clases, cant_tabs + 1) + "\n"
+    json += tabulacion * cant_tabs + '}'
+    return json
+    
+def crear_ejemplo(dicc_clases, clase_principal):
+    return ejemplificar_lista_declaraciones(dicc_clases[clase_principal], dicc_clases, 0)
+    
+def ejemplo_tipo_basico(tipo_basico):
+    # devuelve el ejemplo del tring output de un tipo bassico
+    if tipo_basico == 'int':
+        return str(random.randint(0, 100))
+    elif tipo_basico == 'bool':
+        return str(True if random.random() >= 0.5 else False)
+    elif tipo_basico == 'float64':
+        return str(round(random.random() * 1000, 1))
+    elif tipo_basico == 'string':
+        characteres = string.ascii_lowercase # es un string que contiene todos los caracteres del regex [a-z]
+        random_string = ''.join(random.choice(characteres) for i in range(random.randint(1, 10)))
+        return '"' + random_string + '"'
 
 def tipos_no_primitivos_de_una_lista_de_declaraciones(lista_de_declaraciones):
     # armo una lista de las listas de no primitivos de las declaraciones
@@ -20,12 +47,13 @@ def tipos_no_primitivos_de_una_lista_de_declaraciones(lista_de_declaraciones):
     lista_de_no_primitivos = set(chain(*listas_de_listas_de_no_primitivos))
     
     return lista_de_no_primitivos
+    
 
 class Declaracion:
     # las declaraciones son de la forma:
     # nombre_variable tipo_variable
     # donde el nombre_variable es el indicador del atributo de la clase o estructura declarada
-    # y tipo variable es el tipo correspondiente (bassic type, struct o uno previamente declarado)
+    # y tipo variable es el tipo correspondiente (basic type, struct o uno previamente declarado)
     def __init__(self, nombre_var, tipo):
         self.nombre_var = nombre_var # nombre del atributo
         self.tipo = tipo # tipo del atributo
@@ -33,6 +61,9 @@ class Declaracion:
     def tipos_no_primitivos(self):
         # devuelve una lista con los tipos no primitivos que descienden de esta declaracion
         return self.tipo.no_primitivos()
+    
+    def ejemplo(self, dicc_clases, cant_tabs):
+        return tabulacion * cant_tabs + '"' + self.nombre_var + '"' + ":" + self.tipo.ejemplo(dicc_clases, cant_tabs) + ","
     
     def __repr__(self):
         return str(self.nombre_var) + " " +  str(self.tipo)
@@ -59,6 +90,18 @@ class Tipo:
         # en el caso en el que es un tipo primitivo se devuelve la lista vacia
         else:
             return []
+        
+    def ejemplo(self, dicc_clases, cant_tabs):
+        if isinstance(self.categoria, Estructura):
+            return self.categoria.ejemplo(dicc_clases, cant_tabs)
+        
+        elif not self.es_primitivo:
+            # agregar dimensionalidad
+            return ejemplificar_lista_declaraciones(dicc_clases[self.categoria], dicc_clases, cant_tabs)
+        
+        else:
+            # agregar dimensionalidad
+            return ejemplo_tipo_basico(self.categoria)
     
     def __repr__(self):
         return str(self.categoria) + " " +  str(self.es_primitivo) + " " + str(self.dimension)
@@ -71,11 +114,14 @@ class Estructura:
         # devuelve una lista con los tipos no primitivos ligados las declaraciones dentro del Struct
         return tipos_no_primitivos_de_una_lista_de_declaraciones(self.declaraciones)
     
+    def ejemplo(self, dicc_clases, cant_tabs):
+        return ejemplificar_lista_declaraciones(self.declaraciones, dicc_clases, cant_tabs + 1)
+    
     def __repr__(self):
         return "Estructura " + str(self.declaraciones)
 
     
-def no_hay_dependencias_circulares(dicc: dict):
+def no_hay_dependencias_circulares(dicc):
     # Se arma el grafo de dependencias
     grafo_de_dependencias = DiGraph()
     for nombre, declaraciones in dicc.items():
@@ -88,29 +134,41 @@ def no_hay_dependencias_circulares(dicc: dict):
     # si es un grafo de dependencias resultante es aciclico
     return is_directed_acyclic_graph(grafo_de_dependencias)
 
+def todas_las_dependencias_declaradas(dicc):
+    for clase, declaraciones in dicc.items():
+        dependencias_no_primitivas = tipos_no_primitivos_de_una_lista_de_declaraciones(declaraciones)
+        for dependencia_no_primitiva in dependencias_no_primitivas:
+            if dependencia_no_primitiva not in dicc:
+                return False
+    return True
+
 def p_start(p):
     'start : tipo'
-    if no_hay_dependencias_circulares(p[1]):
-        p[0] = p[1]
+    if no_hay_dependencias_circulares(p[1][0]):
+        if todas_las_dependencias_declaradas(p[1][0]):
+            p[0] = p[1]
+            print(crear_ejemplo(p[0][0], p[0][1]))
+        else:
+            print("FAIL -> Hay dependencias sin declarar")
     else: # hay dependencias circulares
        print("FAIL -> Hay dependencias circulares")
        raise SyntaxError
 
 def p_tipo_novacio(p):
     'tipo : TYPE ID STRUCT LBRACE lista RBRACE tipo'
-    dicc = p[7]
+    dicc = p[7][0]
     if p[2] in dicc:
         print("FAIL -> No se puede declarar dos tipos con el mismo nombre")
         print(f'El tipo "{p[2]}" tiene dos declaraciones')
         raise SyntaxError
     else:
         dicc[p[2]] = p[5]
-        p[0] = dicc
+        p[0] = (dicc, p[2])
     
     
 def p_tipo_vacio(p):
     'tipo : '
-    p[0] = {}
+    p[0] = ({}, None)
 
 def p_lista_tipo_basico(p):
     'lista : ID arreglo BASIC_TYPE lista'
