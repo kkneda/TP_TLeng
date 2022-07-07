@@ -15,8 +15,8 @@ tabulacion = " " * 2
 
 def ejemplificar_lista_declaraciones(lista_de_declaraciones, dicc_clases, cant_tabs):
     json = '{\n'
-    for declaracion in lista_de_declaraciones:
-        json += declaracion.ejemplo(dicc_clases, cant_tabs + 1) + "\n"
+    for i, declaracion in enumerate(lista_de_declaraciones):
+        json += declaracion.ejemplo(dicc_clases, cant_tabs + 1) + (",\n" if i < len(lista_de_declaraciones) - 1 else "\n")
     json += tabulacion * cant_tabs + '}'
     return json
     
@@ -24,7 +24,7 @@ def crear_ejemplo(dicc_clases, clase_principal):
     return ejemplificar_lista_declaraciones(dicc_clases[clase_principal], dicc_clases, 0)
     
 def ejemplo_tipo_basico(tipo_basico):
-    # devuelve el ejemplo del tring output de un tipo bassico
+    # devuelve el ejemplo del tring output de un tipo basico
     if tipo_basico == 'int':
         return str(random.randint(0, 100))
     elif tipo_basico == 'bool':
@@ -32,8 +32,8 @@ def ejemplo_tipo_basico(tipo_basico):
     elif tipo_basico == 'float64':
         return str(round(random.random() * 1000, 1))
     elif tipo_basico == 'string':
-        characteres = string.ascii_lowercase # es un string que contiene todos los caracteres del regex [a-z]
-        random_string = ''.join(random.choice(characteres) for i in range(random.randint(1, 10)))
+        caracteres = string.ascii_lowercase # es un string que contiene todos los caracteres del regex [a-z]
+        random_string = ''.join(random.choice(caracteres) for i in range(random.randint(1, 10)))
         return '"' + random_string + '"'
 
 def tipos_no_primitivos_de_una_lista_de_declaraciones(lista_de_declaraciones):
@@ -48,31 +48,46 @@ def tipos_no_primitivos_de_una_lista_de_declaraciones(lista_de_declaraciones):
     
     return lista_de_no_primitivos
     
+def ejemplo_array(tipo, dimension, dicc_clases, cant_tabs):
+    if dimension == 0:
+        res = tipo.ejemplo(dicc_clases, cant_tabs)
+    else:
+        posiciones = random.randint(0, 5)
+        if posiciones == 0:
+            res = "[]"
+        else:
+            res = "[ \n"
+            for posicion in range(0, posiciones):
+                res += (cant_tabs+1) * tabulacion + ejemplo_array(tipo, dimension - 1, dicc_clases, cant_tabs + 1) + (",\n" if posicion < posiciones - 1 else "\n")
+            res += cant_tabs * tabulacion + "]"
+    return res
 
 class Declaracion:
     # las declaraciones son de la forma:
-    # nombre_variable tipo_variable
-    # donde el nombre_variable es el indicador del atributo de la clase o estructura declarada
-    # y tipo variable es el tipo correspondiente (basic type, struct o uno previamente declarado)
-    def __init__(self, nombre_var, tipo):
+    # nombre_variable tipo_variable dimension
+    # donde el nombre_variable es el indicador del atributo de la clase o estructura declarada,
+    # tipo variable es el tipo correspondiente (basic type, struct o uno previamente declarado)
+    # y la dimension indica la cantidad de arreglos anidados del atributo
+    def __init__(self, nombre_var, tipo, dimension):
         self.nombre_var = nombre_var # nombre del atributo
         self.tipo = tipo # tipo del atributo
+        self.dimension = dimension # dimension del atributo
         
     def tipos_no_primitivos(self):
         # devuelve una lista con los tipos no primitivos que descienden de esta declaracion
         return self.tipo.no_primitivos()
     
     def ejemplo(self, dicc_clases, cant_tabs):
-        return tabulacion * cant_tabs + '"' + self.nombre_var + '"' + ":" + self.tipo.ejemplo(dicc_clases, cant_tabs) + ","
+        #AGREGAR DIMENSIONALIDAD
+        return tabulacion * cant_tabs + '"' + self.nombre_var + '"' + ":" + ejemplo_array(self.tipo, self.dimension, dicc_clases, cant_tabs)
     
     def __repr__(self):
-        return str(self.nombre_var) + " " +  str(self.tipo)
+        return str(self.nombre_var) + " " +  str(self.tipo) + " " + str(self.dimension)
 
 class Tipo:
-    def __init__(self, categoria, es_primitivo, dimension):
+    def __init__(self, categoria, es_primitivo):
         self.categoria = categoria # que clase de tipo es (un tipo indicado  por un string o un struct)
         self.es_primitivo = es_primitivo # un Tipo es primitivo si su categoria pertenece a los basic types
-        self.dimension = dimension # la dimension indica la cantidad de arreglos anidados del tipo
         
     def no_primitivos(self):
         # devuelve una lista con los tipos no primitivos ligados a la categoria de este tipo
@@ -96,15 +111,13 @@ class Tipo:
             return self.categoria.ejemplo(dicc_clases, cant_tabs)
         
         elif not self.es_primitivo:
-            # agregar dimensionalidad
             return ejemplificar_lista_declaraciones(dicc_clases[self.categoria], dicc_clases, cant_tabs)
         
         else:
-            # agregar dimensionalidad
             return ejemplo_tipo_basico(self.categoria)
     
     def __repr__(self):
-        return str(self.categoria) + " " +  str(self.es_primitivo) + " " + str(self.dimension)
+        return str(self.categoria) + " " +  str(self.es_primitivo)
 
 class Estructura:
     def __init__(self, declaraciones):
@@ -146,8 +159,7 @@ def p_start(p):
     'start : tipo'
     if no_hay_dependencias_circulares(p[1][0]):
         if todas_las_dependencias_declaradas(p[1][0]):
-            p[0] = p[1]
-            print(crear_ejemplo(p[0][0], p[0][1]))
+            p[0] = crear_ejemplo(p[1][0], p[1][1])
         else:
             print("FAIL -> Hay dependencias sin declarar")
     else: # hay dependencias circulares
@@ -172,8 +184,8 @@ def p_tipo_vacio(p):
 
 def p_lista_tipo_basico(p):
     'lista : ID arreglo BASIC_TYPE lista'
-    tipo = Tipo(p[3], True,p[2])
-    decl = Declaracion(p[1], tipo)
+    tipo = Tipo(p[3], True)
+    decl = Declaracion(p[1], tipo, p[2])
     nombre_cosas_ya_declaradas = [decl.nombre_var for decl in p[4]]
     if p[1] in nombre_cosas_ya_declaradas:
         print("FAIL -> No se puede declarar dos atributos con el mismo nombre")
@@ -184,8 +196,8 @@ def p_lista_tipo_basico(p):
 
 def p_lista_tipo_estructura_independiente(p):
     'lista : ID arreglo ID lista'
-    tipo = Tipo(p[3], False, p[2])
-    decl = Declaracion(p[1], tipo)
+    tipo = Tipo(p[3], False)
+    decl = Declaracion(p[1], tipo, p[2])
     nombre_cosas_ya_declaradas = [decl.nombre_var for decl in p[4]]
     if p[1] in nombre_cosas_ya_declaradas:
         print("FAIL -> No se puede declarar dos atributos con el mismo nombre")
@@ -197,8 +209,8 @@ def p_lista_tipo_estructura_independiente(p):
 def p_lista_tipo_estructura_dependiente(p):
     'lista : ID arreglo STRUCT LBRACE lista RBRACE lista'
     estructura = Estructura(p[5])
-    tipo = Tipo(estructura, False, p[2])
-    decl = Declaracion(p[1], tipo)
+    tipo = Tipo(estructura, False)
+    decl = Declaracion(p[1], tipo, p[2])
     nombre_cosas_ya_declaradas = [decl.nombre_var for decl in p[7]]
     if p[1] in nombre_cosas_ya_declaradas:
         print("FAIL -> No se puede declarar dos atributos con el mismo nombre")
