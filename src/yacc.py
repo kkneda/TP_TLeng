@@ -276,7 +276,9 @@ def terminar_parser():
     raise ParsingError
 
 def p_error(p):
-    raise ParsingError
+    print("En linea:caracter = " + str(p.lineno) + ":" + str(p.lexpos) + " :")
+    print("ERROR: No se pudo parsear \'" + str(p.value) + '\'')
+    terminar_parser()
 
 
 parser = yacc.yacc()
