@@ -1,0 +1,103 @@
+----- Ejemplo del enunicado (válido) -----
+
+type persona struct {
+	nombre string
+	edad int
+	nacionalidad pais
+	ventas []float64
+	activo bool
+}
+
+type pais struct {
+	nombre string
+	codigo struct {
+		prefijo string
+		sufijo string
+	}
+}
+
+----- Ejemplo extra (válido) -----
+
+type persona struct {
+	edad int
+	grupos_tps [][]string
+	salario float64
+	coordenadas punto_3D
+}
+
+type punto_3D struct {
+	x int
+	y int
+	z int
+}
+
+type cosa struct {
+	aeiou int
+	qwerty float64
+	bababooey bool
+}
+
+----- Ejemplo con caracter ilegal (válido, ignorado por lexer y no interfiere con parsing) -----
+
+type cosa struct {
+	valor int;
+	cadena string;
+}
+
+----- Ejemplo con caracter ilegal (inválido, ignorado por lexer pero interfiere con parsing) -----
+
+type cosa struct {
+	v;lor int
+	cadena string
+}
+
+----- Ejemplo con dependencia circular (inválido) -----
+
+type persona struct {
+	nombre string
+	edad int
+	nacionalidad pais
+	ventas []float64
+	activo bool
+}
+
+type pais struct {
+	nombre string
+	manolo persona
+}
+
+----- Ejemplo con dependencia no declarada (inválido) -----
+
+type persona struct {
+	nombre string
+	edad int
+	nacionalidad pais
+	ventas []float64
+	activo bool
+}
+
+----- Ejemplo con atributo doblemente declarado (inválido) -----
+
+type cosa struct {
+	x int
+	y int
+	x int
+	z int
+}
+
+----- Ejemplo con dependencia circular compleja (inválido) -----
+
+type cosota struct {
+	edad int
+	juan cosa
+}
+
+type cosa struct {
+	edad int
+	juancito cosita
+}
+
+type cosita struct {
+	edad int
+	juancho cosota
+}
