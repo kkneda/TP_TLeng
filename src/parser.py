@@ -80,7 +80,6 @@ class Declaracion:
         return self.tipo.no_primitivos()
     
     def ejemplo(self, dicc_clases, cant_tabs):
-        #AGREGAR DIMENSIONALIDAD
         return tabulacion * cant_tabs + '"' + self.nombre_var + '"' + ":" + ejemplo_array(self.tipo, self.dimension, dicc_clases, cant_tabs)
     
     def __repr__(self):
@@ -130,24 +129,12 @@ class Estructura:
         return tipos_no_primitivos_de_una_lista_de_declaraciones(self.declaraciones)
     
     def ejemplo(self, dicc_clases, cant_tabs):
-        return ejemplificar_lista_declaraciones(self.declaraciones, dicc_clases, cant_tabs + 1)
+        return ejemplificar_lista_declaraciones(self.declaraciones, dicc_clases, cant_tabs)
     
     def __repr__(self):
         return "Estructura " + str(self.declaraciones)
 
     
-def no_hay_dependencias_circulares(dicc):
-    # Se arma el grafo de dependencias
-    grafo_de_dependencias = DiGraph()
-    for nombre, declaraciones in dicc.items():
-        grafo_de_dependencias.add_node(nombre)
-        vecinos = tipos_no_primitivos_de_una_lista_de_declaraciones(declaraciones)
-        aristas = zip([nombre]*len(vecinos), vecinos)
-        grafo_de_dependencias.add_edges_from(aristas)
-    
-    # devuelve verdadero (es decir, que no hay dependencias circulares)
-    # si es un grafo de dependencias resultante es aciclico
-    return is_directed_acyclic_graph(grafo_de_dependencias)
 
 def buscar_dependencias_circulares(dicc):
 		# Se arma el grafo de dependencias
@@ -164,13 +151,6 @@ def buscar_dependencias_circulares(dicc):
     except NetworkXNoCycle:
         return None # Si se genera excepcion, no hay ciclos.
 
-def todas_las_dependencias_declaradas(dicc):
-    for clase, declaraciones in dicc.items():
-        dependencias_no_primitivas = tipos_no_primitivos_de_una_lista_de_declaraciones(declaraciones)
-        for dependencia_no_primitiva in dependencias_no_primitivas:
-            if dependencia_no_primitiva not in dicc:
-                return False
-    return True
 
 def buscar_dependencias_no_declaradas(dicc):
     for clase, declaraciones in dicc.items():
@@ -181,8 +161,6 @@ def buscar_dependencias_no_declaradas(dicc):
                 return dependencia_no_primitiva
     # Si toda dependencia no primitiva esta en dicc, no hay dependencias no declaradas:
     return None
-    # Nota: Habria que tener en cuenta que a esta funcion no le importa el orden de declaraciones, y 
-    # quizas ese comportamiento no sea correcto para Go. 
 
 def p_start(p):
     'start : tipo'
@@ -190,17 +168,18 @@ def p_start(p):
     clase_principal = p[1][1]
     dependencias_circulares = buscar_dependencias_circulares(dicc_clases)
     dependencias_no_declaradas = buscar_dependencias_no_declaradas(dicc_clases)
-    if dependencias_circulares is None: # if no_hay_dependencias_circulares(p[1][0]):
-        if dependencias_no_declaradas is None: # if todas_las_dependencias_declaradas(p[1][0]):
+    if dependencias_circulares is None:
+        if dependencias_no_declaradas is None: 
             ejemplo = crear_ejemplo(dicc_clases, clase_principal)
             p[0] = ejemplo
         else:
-            print("FAIL -> Hay dependencias sin declarar: " + dependencias_no_declaradas) # print("FAIL -> Hay dependencias sin declarar")
+            print("ERROR: Hay dependencias sin declarar: " + dependencias_no_declaradas) 
             terminar_parser()
             
     else: # hay dependencias circulares
-       print("FAIL -> Hay dependencias circulares: " + str(dependencias_circulares))
-       terminar_parser()
+        ciclo = dependencias_circulares[0][0] + "->" + dependencias_circulares[0][1] + "".join("->"+dependencias_circulares[i][1] for i in range(1,len(dependencias_circulares)))
+        print("ERROR: Hay dependencias circulares: " + ciclo)
+        terminar_parser()
 
 def p_tipo_novacio(p):
     'tipo : TYPE ID STRUCT LBRACE lista RBRACE tipo'
