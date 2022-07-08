@@ -196,19 +196,19 @@ def p_start(p):
             p[0] = ejemplo
         else:
             print("FAIL -> Hay dependencias sin declarar: " + dependencias_no_declaradas) # print("FAIL -> Hay dependencias sin declarar")
-            p_error(p)
+            terminar_parser()
             
     else: # hay dependencias circulares
        print("FAIL -> Hay dependencias circulares: " + str(dependencias_circulares))
-       p_error(p)
+       terminar_parser()
 
 def p_tipo_novacio(p):
     'tipo : TYPE ID STRUCT LBRACE lista RBRACE tipo'
     dicc = p[7][0]
     if p[2] in dicc:
-        print("En " + str(p.lineno(2)) + ":" + str(p.lexpos(2)) + " :")
+        print("En linea:caracter = " + str(p.lineno(2)) + ":" + str(p.lexpos(2)) + " :")
         print(f'ERROR: El tipo "{p[2]}" tiene dos declaraciones')
-        p_error(p)
+        terminar_parser()
     else:
         dicc[p[2]] = p[5]
         p[0] = (dicc, p[2]) # Al final deberia quedar en p[0][1] la ID del tipo principal.
@@ -224,9 +224,9 @@ def p_lista_tipo_basico(p):
     decl = Declaracion(p[1], tipo, p[2])
     nombre_cosas_ya_declaradas = [decl.nombre_var for decl in p[4]]
     if p[1] in nombre_cosas_ya_declaradas:
-        print("En " + str(p.lineno(1)) + ":" + str(p.lexpos(1)) + " :")
+        print("En linea:caracter = " + str(p.lineno(1)) + ":" + str(p.lexpos(1)) + " :")
         print(f'ERROR: El atributo "{p[1]}" tiene dos declaraciones')
-        p_error(p)
+        terminar_parser()
     else:
         p[0] = [decl] + p[4]
 
@@ -236,9 +236,9 @@ def p_lista_tipo_estructura_independiente(p):
     decl = Declaracion(p[1], tipo, p[2])
     nombre_cosas_ya_declaradas = [decl.nombre_var for decl in p[4]]
     if p[1] in nombre_cosas_ya_declaradas:
-        print("En " + str(p.lineno(1)) + ":" + str(p.lexpos(1)) + " :")
+        print("En linea:caracter = " + str(p.lineno(1)) + ":" + str(p.lexpos(1)) + " :")
         print(f'Error: El atributo "{p[1]}" tiene dos declaraciones')
-        p_error(p)
+        terminar_parser()
     else:
         p[0] = [decl] + p[4]
 
@@ -249,9 +249,9 @@ def p_lista_tipo_estructura_dependiente(p):
     decl = Declaracion(p[1], tipo, p[2])
     nombre_cosas_ya_declaradas = [decl.nombre_var for decl in p[7]]
     if p[1] in nombre_cosas_ya_declaradas:
-        print("En " + str(p.lineno(1)) + ":" + str(p.lexpos(1)) + " :")
+        print("En linea:caracter = " + str(p.lineno(1)) + ":" + str(p.lexpos(1)) + " :")
         print(f'ERROR: El atributo "{p[1]}" tiene dos declaraciones')
-        p_error(p)
+        terminar_parser()
     else:
         p[0] = [decl] + p[7]
 
@@ -271,6 +271,9 @@ def p_arreglo_vacio(p):
 
 class ParsingError(Exception):
     pass
+
+def terminar_parser():
+    raise ParsingError
 
 def p_error(p):
     raise ParsingError
