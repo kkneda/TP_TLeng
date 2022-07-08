@@ -1,6 +1,7 @@
 from networkx import DiGraph, is_directed_acyclic_graph, find_cycle
 from networkx.exception import NetworkXNoCycle
 from itertools import chain
+import sys
 import random
 import string
 import ply.yacc as yacc
@@ -285,13 +286,9 @@ def parse(data):
         return 'Parsing Error'
 
 def test():
-    while True:
-        try:
-            s = input('calc > ')
-        except EOFError:
-            break
-        if not s: continue
-        result = parse(s)
-        print(result)
+    import sys
+    s = sys.stdin.read()
+    result = parse(s)
+    print(result)
 
 test()
