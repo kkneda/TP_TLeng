@@ -276,8 +276,11 @@ def terminar_parser():
     raise ParsingError
 
 def p_error(p):
-    print("En linea:caracter = " + str(p.lineno) + ":" + str(p.lexpos) + " :")
-    print("ERROR: No se pudo parsear \'" + str(p.value) + '\'')
+    if p is None:
+        print("Error al final del programa.")
+    else:
+        print("En linea:caracter = " + str(p.lineno) + ":" + str(p.lexpos) + " :")
+        print("ERROR: No se pudo parsear \'" + str(p.value) + '\'')
     terminar_parser()
 
 
