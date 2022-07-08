@@ -1,4 +1,5 @@
-from networkx import DiGraph, is_directed_acyclic_graph
+from networkx import DiGraph, is_directed_acyclic_graph, find_cycle
+from networkx.exception import NetworkXNoCycle
 from itertools import chain
 import random
 import string
@@ -21,10 +22,10 @@ def ejemplificar_lista_declaraciones(lista_de_declaraciones, dicc_clases, cant_t
     return json
     
 def crear_ejemplo(dicc_clases, clase_principal):
-    return ejemplificar_lista_declaraciones(dicc_clases[clase_principal], dicc_clases, 0)
+		return ejemplificar_lista_declaraciones(dicc_clases[clase_principal], dicc_clases, 0)
     
 def ejemplo_tipo_basico(tipo_basico):
-    # devuelve el ejemplo del tring output de un tipo basico
+    # devuelve el ejemplo del string output de un tipo basico
     if tipo_basico == 'int':
         return str(random.randint(0, 100))
     elif tipo_basico == 'bool':
@@ -93,7 +94,7 @@ class Tipo:
         # devuelve una lista con los tipos no primitivos ligados a la categoria de este tipo
         
         # en el caso en el cual la categoria es una estructura,
-        # devuelve la lista de los tipos no primitivos de sus declaraciones
+        # devuelve la lista de los tipos no primidivos de sus declaraciones
         if isinstance(self.categoria, Estructura):
             return self.categoria.no_primitivos()
         
@@ -147,6 +148,21 @@ def no_hay_dependencias_circulares(dicc):
     # si es un grafo de dependencias resultante es aciclico
     return is_directed_acyclic_graph(grafo_de_dependencias)
 
+def buscar_dependencias_circulares(dicc):
+		# Se arma el grafo de dependencias
+    grafo_de_dependencias = DiGraph()
+    for nombre, declaraciones in dicc.items():
+        grafo_de_dependencias.add_node(nombre)
+        vecinos = tipos_no_primitivos_de_una_lista_de_declaraciones(declaraciones)
+        aristas = zip([nombre]*len(vecinos), vecinos)
+        grafo_de_dependencias.add_edges_from(aristas)
+    
+    try:
+        ciclo = find_cycle(grafo_de_dependencias, orientation="original")
+        return ciclo # Si no se genera excepcion, hay ciclo y se lo retorna.
+    except NetworkXNoCycle:
+        return None # Si se genera excepcion, no hay ciclos.
+
 def todas_las_dependencias_declaradas(dicc):
     for clase, declaraciones in dicc.items():
         dependencias_no_primitivas = tipos_no_primitivos_de_una_lista_de_declaraciones(declaraciones)
@@ -155,32 +171,51 @@ def todas_las_dependencias_declaradas(dicc):
                 return False
     return True
 
+def buscar_dependencias_no_declaradas(dicc):
+    for clase, declaraciones in dicc.items():
+        dependencias_no_primitivas = tipos_no_primitivos_de_una_lista_de_declaraciones(declaraciones)
+        for dependencia_no_primitiva in dependencias_no_primitivas:
+            if dependencia_no_primitiva not in dicc:
+            		# Una dependencia no primitiva que no este en dicc es una dependencia no declarada:
+                return dependencia_no_primitiva
+    # Si toda dependencia no primitiva esta en dicc, no hay dependencias no declaradas:
+    return None
+    # Nota: Habria que tener en cuenta que a esta funcion no le importa el orden de declaraciones, y 
+    # quizas ese comportamiento no sea correcto para Go. 
+
 def p_start(p):
     'start : tipo'
-    if no_hay_dependencias_circulares(p[1][0]):
-        if todas_las_dependencias_declaradas(p[1][0]):
-            p[0] = crear_ejemplo(p[1][0], p[1][1])
+    dicc_clases = p[1][0]
+    clase_principal = p[1][1]
+    dependencias_circulares = buscar_dependencias_circulares(dicc_clases)
+    dependencias_no_declaradas = buscar_dependencias_no_declaradas(dicc_clases)
+    if dependencias_circulares is None: # if no_hay_dependencias_circulares(p[1][0]):
+        if dependencias_no_declaradas is None: # if todas_las_dependencias_declaradas(p[1][0]):
+            ejemplo = crear_ejemplo(dicc_clases, clase_principal)
+            p[0] = ejemplo
         else:
-            print("FAIL -> Hay dependencias sin declarar")
+            print("FAIL -> Hay dependencias sin declarar: " + dependencias_no_declaradas) # print("FAIL -> Hay dependencias sin declarar")
+            p_error(p)
+            
     else: # hay dependencias circulares
-       print("FAIL -> Hay dependencias circulares")
-       raise SyntaxError
+       print("FAIL -> Hay dependencias circulares: " + str(dependencias_circulares))
+       p_error(p)
 
 def p_tipo_novacio(p):
     'tipo : TYPE ID STRUCT LBRACE lista RBRACE tipo'
     dicc = p[7][0]
     if p[2] in dicc:
-        print("FAIL -> No se puede declarar dos tipos con el mismo nombre")
-        print(f'El tipo "{p[2]}" tiene dos declaraciones')
-        raise SyntaxError
+        print("En " + str(p.lineno(2)) + ":" + str(p.lexpos(2)) + " :")
+        print(f'ERROR: El tipo "{p[2]}" tiene dos declaraciones')
+        p_error(p)
     else:
         dicc[p[2]] = p[5]
-        p[0] = (dicc, p[2])
+        p[0] = (dicc, p[2]) # Al final deberia quedar en p[0][1] la ID del tipo principal.
     
     
 def p_tipo_vacio(p):
     'tipo : '
-    p[0] = ({}, None)
+    p[0] = ({}, None) # {} = diccionario vacío.
 
 def p_lista_tipo_basico(p):
     'lista : ID arreglo BASIC_TYPE lista'
@@ -188,9 +223,9 @@ def p_lista_tipo_basico(p):
     decl = Declaracion(p[1], tipo, p[2])
     nombre_cosas_ya_declaradas = [decl.nombre_var for decl in p[4]]
     if p[1] in nombre_cosas_ya_declaradas:
-        print("FAIL -> No se puede declarar dos atributos con el mismo nombre")
-        print(f'El atributo "{p[1]}" tiene dos declaraciones')
-        raise SyntaxError
+        print("En " + str(p.lineno(1)) + ":" + str(p.lexpos(1)) + " :")
+        print(f'ERROR: El atributo "{p[1]}" tiene dos declaraciones')
+        p_error(p)
     else:
         p[0] = [decl] + p[4]
 
@@ -200,9 +235,9 @@ def p_lista_tipo_estructura_independiente(p):
     decl = Declaracion(p[1], tipo, p[2])
     nombre_cosas_ya_declaradas = [decl.nombre_var for decl in p[4]]
     if p[1] in nombre_cosas_ya_declaradas:
-        print("FAIL -> No se puede declarar dos atributos con el mismo nombre")
-        print(f'El atributo "{p[1]}" tiene dos declaraciones')
-        raise SyntaxError
+        print("En " + str(p.lineno(1)) + ":" + str(p.lexpos(1)) + " :")
+        print(f'Error: El atributo "{p[1]}" tiene dos declaraciones')
+        p_error(p)
     else:
         p[0] = [decl] + p[4]
 
@@ -213,9 +248,9 @@ def p_lista_tipo_estructura_dependiente(p):
     decl = Declaracion(p[1], tipo, p[2])
     nombre_cosas_ya_declaradas = [decl.nombre_var for decl in p[7]]
     if p[1] in nombre_cosas_ya_declaradas:
-        print("FAIL -> No se puede declarar dos atributos con el mismo nombre")
-        print(f'El atributo "{p[1]}" tiene dos declaraciones')
-        raise SyntaxError
+        print("En " + str(p.lineno(1)) + ":" + str(p.lexpos(1)) + " :")
+        print(f'ERROR: El atributo "{p[1]}" tiene dos declaraciones')
+        p_error(p)
     else:
         p[0] = [decl] + p[7]
 
@@ -233,11 +268,21 @@ def p_arreglo_vacio(p):
     p[0] = 0 
 
 
+class ParsingError(Exception):
+    pass
+
 def p_error(p):
-    print("Syntax error in input!")
+    raise ParsingError
 
 
 parser = yacc.yacc()
+
+def parse(data):
+    try:
+        p = parser.parse(data)
+        return p
+    except ParsingError:
+        return 'Parsing Error'
 
 def test():
     while True:
@@ -246,7 +291,7 @@ def test():
         except EOFError:
             break
         if not s: continue
-        result = parser.parse(s)
+        result = parse(s)
         print(result)
 
 test()
