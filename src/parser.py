@@ -273,7 +273,6 @@ def parse(data):
         return 'Parsing Error'
 
 def test():
-    import sys
     s = sys.stdin.read()
     result = parse(s)
     print(result)
